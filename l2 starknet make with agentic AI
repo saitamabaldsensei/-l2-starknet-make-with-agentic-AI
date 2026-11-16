@@ -1,0 +1,62 @@
+
+#[starknet::interface]
+pub trait IAIAgent<TContractState> {
+    fn create_task(ref self: TContractState, task_id: u64, prompt: felt252);
+    fn complete_task(ref self: TContractState, task_id: u64, result: felt252);
+    fn get_result(self: @TContractState, task_id: u64) -> felt252;
+}
+
+#[starknet::contract]
+mod AIAgent {
+    use starknet::storage::{
+        Map, StorageMapReadAccess, StorageMapWriteAccess
+    };
+    use starknet::get_caller_address;
+    use starknet::ContractAddress;
+
+    #[storage]
+    struct Storage {
+        task_owner: Map<u64, ContractAddress>,
+        task_prompt: Map<u64, felt252>,
+        task_result: Map<u64, felt252>,
+        task_status: Map<u64, u8>,
+    }
+
+    #[abi(embed_v0)]
+    impl AIAgentImpl of super::IAIAgent<ContractState> {
+
+        fn create_task(
+            ref self: ContractState,
+            task_id: u64,
+            prompt: felt252
+        ) {
+            assert(self.task_status.read(task_id) == 0, 'Task exists');
+
+            self.task_owner.write(
+                task_id,
+                get_caller_address()
+            );
+
+            self.task_prompt.write(task_id, prompt);
+            self.task_status.write(task_id, 1);
+        }
+
+        fn complete_task(
+            ref self: ContractState,
+            task_id: u64,
+            result: felt252
+        ) {
+            assert(self.task_status.read(task_id) == 1, 'Invalid task');
+
+            self.task_result.write(task_id, result);
+            self.task_status.write(task_id, 2);
+        }
+
+        fn get_result(
+            self: @ContractState,
+            task_id: u64
+        ) -> felt252 {
+            self.task_result.read(task_id)
+        }
+    }
+}
